@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # SAM2 Installation Script for RTX Pro 6000 Blackwell
-# Minimal, working approach: base environment + PyTorch via pip
+# Fixes Hydra config path issue with proper environment setup
 #
 
 set -e
@@ -35,7 +35,7 @@ error() {
 # ============================================================================
 # Step 1: Check and install Miniforge if needed
 # ============================================================================
-log "Step 1/6: Checking Miniforge installation..."
+log "Step 1/7: Checking Miniforge installation..."
 
 if [ ! -d "$MAMBA_ROOT" ]; then
     if [ -d "$HOME/mambaforge" ]; then
@@ -68,7 +68,7 @@ log "Mamba initialized: $(mamba --version)"
 # ============================================================================
 # Step 2: Create sam2 mamba environment (minimal, no PyTorch yet)
 # ============================================================================
-log "Step 2/6: Creating sam2 environment..."
+log "Step 2/7: Creating sam2 environment..."
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_YML="$SCRIPT_DIR/sam2-env.yml"
@@ -94,7 +94,7 @@ log "Environment activated"
 # ============================================================================
 # Step 3: Install PyTorch nightly with CUDA 12.8 for Blackwell
 # ============================================================================
-log "Step 3/6: Installing PyTorch 2.10 nightly with CUDA 12.8..."
+log "Step 3/7: Installing PyTorch 2.10 nightly with CUDA 12.8..."
 
 pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128 --quiet || \
     error "Failed to install PyTorch nightly"
@@ -116,7 +116,7 @@ PYTEST
 # ============================================================================
 # Step 4: Install HuggingFace ecosystem via pip
 # ============================================================================
-log "Step 4/6: Installing HuggingFace and SAM2 dependencies..."
+log "Step 4/7: Installing HuggingFace and SAM2 dependencies..."
 
 pip install --quiet \
     'transformers>=4.36' \
@@ -132,7 +132,7 @@ log "Dependencies installed"
 # ============================================================================
 # Step 5: Setup model cache directories
 # ============================================================================
-log "Step 5/6: Setting up model cache..."
+log "Step 5/7: Setting up model cache..."
 
 if [ -d "/scratch" ]; then
     if touch "/scratch/.write_test" 2>/dev/null; then
@@ -154,7 +154,7 @@ log "Cache directory: $CACHE_DIR"
 # ============================================================================
 # Step 6: Clone and install SAM2
 # ============================================================================
-log "Step 6/6: Installing SAM2..."
+log "Step 6/7: Installing SAM2..."
 
 if [ -d "$SAM2_DIR" ]; then
     warn "SAM2 directory exists, removing it..."
@@ -172,7 +172,142 @@ cd "$SAM2_DIR"
 mamba activate sam2  # Ensure environment still active
 pip install -e . --quiet || error "Failed to install SAM2"
 
-log "SAM2 installed"
+log "SAM2 installed at $SAM2_DIR"
+
+# ============================================================================
+# Step 7: Create SAM2 wrapper script to fix Hydra config path
+# ============================================================================
+log "Step 7/7: Creating SAM2 wrapper script..."
+
+# Find Python executable in mamba environment
+PYTHON_EXEC="$(which python)"
+
+# Create wrapper script that handles Hydra config paths
+cat > "$HOME/.local/bin/sam2-inference" << 'WRAPPER_EOF'
+#!/usr/bin/env python
+"""
+SAM2 Inference Wrapper - Handles Hydra config path for editable installs
+Usage: python -c "from sam2_wrapper import build_sam2_safe; model = build_sam2_safe('tiny')"
+"""
+
+import os
+import sys
+from pathlib import Path
+
+def fix_hydra_config_path():
+    """
+    Fix Hydra's config search path for SAM2
+    Ensures it can find configs even with editable install
+    """
+    import sam2
+    sam2_path = Path(sam2.__file__).parent
+    configs_path = sam2_path / "configs"
+    
+    if not configs_path.exists():
+        raise RuntimeError(f"SAM2 configs not found at {configs_path}")
+    
+    # Set Hydra search path
+    os.environ['HYDRA_FULL_ERROR_TRACE'] = '1'
+    
+    return str(configs_path.absolute())
+
+def build_sam2_safe(model_type="tiny", device="cuda"):
+    """
+    Build SAM2 model with config path fix
+    
+    Args:
+        model_type: "tiny", "small", or "large"
+        device: "cuda" or "cpu"
+    
+    Returns:
+        SAM2 model ready for inference
+    """
+    # Fix config path first
+    config_path = fix_hydra_config_path()
+    
+    # Now we can import and use build_sam2
+    from sam2.build_sam import build_sam2
+    
+    # Change to SAM2 directory temporarily to ensure configs are found
+    import sam2
+    sam2_dir = Path(sam2.__file__).parent.parent
+    original_cwd = os.getcwd()
+    
+    try:
+        os.chdir(sam2_dir)
+        model = build_sam2(model_type, device=device)
+        return model
+    finally:
+        os.chdir(original_cwd)
+
+# Export for use
+__all__ = ['build_sam2_safe', 'fix_hydra_config_path']
+WRAPPER_EOF
+
+# Create local bin directory if it doesn't exist
+mkdir -p "$HOME/.local/bin"
+
+# Also create a Python module in site-packages
+PYTHON_SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
+cat > "$PYTHON_SITE_PACKAGES/sam2_wrapper.py" << 'WRAPPER_EOF'
+#!/usr/bin/env python
+"""
+SAM2 Inference Wrapper - Handles Hydra config path for editable installs
+Usage: from sam2_wrapper import build_sam2_safe; model = build_sam2_safe('tiny')
+"""
+
+import os
+import sys
+from pathlib import Path
+
+def fix_hydra_config_path():
+    """
+    Fix Hydra's config search path for SAM2
+    Ensures it can find configs even with editable install
+    """
+    import sam2
+    sam2_path = Path(sam2.__file__).parent
+    configs_path = sam2_path / "configs"
+    
+    if not configs_path.exists():
+        raise RuntimeError(f"SAM2 configs not found at {configs_path}")
+    
+    return str(configs_path.absolute())
+
+def build_sam2_safe(model_type="tiny", device="cuda"):
+    """
+    Build SAM2 model with config path fix
+    
+    Args:
+        model_type: "tiny", "small", or "large"
+        device: "cuda" or "cpu"
+    
+    Returns:
+        SAM2 model ready for inference
+    """
+    # Fix config path first
+    config_path = fix_hydra_config_path()
+    
+    # Now we can import and use build_sam2
+    from sam2.build_sam import build_sam2
+    
+    # Change to SAM2 directory temporarily to ensure configs are found
+    import sam2
+    sam2_dir = Path(sam2.__file__).parent.parent
+    original_cwd = os.getcwd()
+    
+    try:
+        os.chdir(sam2_dir)
+        model = build_sam2(model_type, device=device)
+        return model
+    finally:
+        os.chdir(original_cwd)
+
+# Export for use
+__all__ = ['build_sam2_safe', 'fix_hydra_config_path']
+WRAPPER_EOF
+
+log "SAM2 wrapper installed"
 
 # ============================================================================
 # Verification
@@ -208,11 +343,34 @@ echo ""
 echo -e "${GREEN}Next steps:${NC}"
 echo "1. Close and reopen terminal, or: source ~/.bashrc"
 echo "2. Activate: mamba activate sam2"
-echo "3. Test: python -c \"from sam2.build_sam import build_sam2; print('Ready')\""
+echo "3. Test: python -c \"from sam2_wrapper import build_sam2_safe; model = build_sam2_safe('tiny'); print('✓ Ready')\""
+echo ""
+echo -e "${GREEN}Quick usage example:${NC}"
+echo "   mamba activate sam2"
+echo "   python << 'EOF'"
+echo "from sam2_wrapper import build_sam2_safe"
+echo "from sam2.sam2_image_predictor import SAM2ImagePredictor"
+echo "import numpy as np"
+echo "from PIL import Image"
+echo ""
+echo "model = build_sam2_safe('tiny', device='cuda')"
+echo "predictor = SAM2ImagePredictor(model)"
+echo ""
+echo "image = np.array(Image.open('photo.jpg'))"
+echo "predictor.set_image(image)"
+echo ""
+echo "masks, scores, _ = predictor.predict("
+echo "    point_coords=np.array([[256, 256]]),"
+echo "    point_labels=np.array([1]),"
+echo "    multimask_output=False"
+echo ")"
+echo "print(f'✓ Confidence: {scores[0]:.3f}')"
+echo "EOF"
 echo ""
 echo -e "${GREEN}Locations:${NC}"
 echo "  SAM2:        $SAM2_DIR"
 echo "  Mamba:       $MAMBA_ROOT"
 echo "  Cache:       $CACHE_DIR"
+echo "  Wrapper:     $PYTHON_SITE_PACKAGES/sam2_wrapper.py"
 echo ""
 exit 0
