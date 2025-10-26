@@ -96,6 +96,20 @@ log "Environment created successfully"
 mamba activate sam2 || error "Failed to activate sam2 environment"
 log "Environment activated"
 
+# Upgrade PyTorch to nightly 2.10 with CUDA 12.8 for Blackwell sm_120
+log "Upgrading PyTorch to nightly 2.10 for Blackwell optimization..."
+pip install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cu128 --quiet || \
+    warn "PyTorch nightly upgrade failed, continuing with stable 2.4.1"
+
+# Verify PyTorch CUDA support
+python3 << 'PYTEST'
+import torch
+if not torch.cuda.is_available():
+    print("WARNING: CUDA not available after PyTorch install")
+else:
+    print(f"✓ PyTorch {torch.__version__} with CUDA {torch.version.cuda}")
+PYTEST
+
 # ============================================================================
 # Step 3: Setup model cache directories
 # ============================================================================
