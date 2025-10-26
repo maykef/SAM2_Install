@@ -159,46 +159,12 @@ log "Step 6/6: Installing SAM2 wrapper (Hydra config fix)..."
 # Get Python site-packages directory
 PYTHON_SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
 
-# Create wrapper module
-cat > "$PYTHON_SITE_PACKAGES/sam2_wrapper.py" << 'WRAPPER_EOF'
-#!/usr/bin/env python
-"""
-SAM2 Inference Wrapper - Fixes Hydra config path for editable installs
-Usage: from sam2_wrapper import build_sam2_safe; model = build_sam2_safe('tiny')
-"""
+# Copy wrapper from setup directory to site-packages
+if [ ! -f "$SCRIPT_DIR/sam2_wrapper.py" ]; then
+    error "sam2_wrapper.py not found in setup directory at $SCRIPT_DIR"
+fi
 
-import os
-from pathlib import Path
-
-def build_sam2_safe(model_type="tiny", device="cuda"):
-    """
-    Build SAM2 model with config path fix
-    
-    Args:
-        model_type: "tiny", "small", or "large"
-        device: "cuda" or "cpu"
-    
-    Returns:
-        SAM2 model ready for inference
-    """
-    # Import after defining function to allow module-level use
-    from sam2.build_sam import build_sam2
-    import sam2
-    
-    # Change to SAM2 directory temporarily to ensure Hydra finds configs
-    sam2_dir = Path(sam2.__file__).parent.parent
-    original_cwd = os.getcwd()
-    
-    try:
-        os.chdir(sam2_dir)
-        model = build_sam2(model_type, device=device)
-        return model
-    finally:
-        os.chdir(original_cwd)
-
-__all__ = ['build_sam2_safe']
-WRAPPER_EOF
-
+cp "$SCRIPT_DIR/sam2_wrapper.py" "$PYTHON_SITE_PACKAGES/sam2_wrapper.py"
 log "SAM2 wrapper installed: $PYTHON_SITE_PACKAGES/sam2_wrapper.py"
 
 # ============================================================================
