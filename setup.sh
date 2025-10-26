@@ -16,7 +16,7 @@ SAM2_DIR="$HOME/sam2"
 MAMBA_ROOT="${MAMBA_ROOT_PREFIX:-$HOME/miniforge3}"
 
 # Step 1: Miniforge
-log "Step 1/5: Checking Miniforge..."
+log "Step 1/6: Checking Miniforge..."
 if [ ! -d "$MAMBA_ROOT" ]; then
     log "Installing Miniforge..."
     curl -fsSL https://github.com/conda-forge/miniforge/releases/download/24.11.2-0/Miniforge3-Linux-x86_64.sh -o /tmp/mf.sh
@@ -27,7 +27,7 @@ eval "$("$MAMBA_ROOT/bin/mamba" shell hook --shell bash)"
 log "Mamba OK: $(mamba --version)"
 
 # Step 2: Environment
-log "Step 2/5: Creating mamba environment..."
+log "Step 2/6: Creating mamba environment..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_YML="$SCRIPT_DIR/sam2-env.yml"
 [ -f "$ENV_YML" ] || error "sam2-env.yml not found in $SCRIPT_DIR"
@@ -37,17 +37,17 @@ mamba activate sam2
 log "Environment created"
 
 # Step 3: PyTorch nightly
-log "Step 3/5: Installing PyTorch 2.10 nightly with CUDA 12.8..."
+log "Step 3/6: Installing PyTorch 2.10 nightly with CUDA 12.8..."
 pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128 --quiet
 python3 -c "import torch; assert torch.cuda.is_available(); print(f'✓ PyTorch {torch.__version__} + CUDA {torch.version.cuda}')"
 
 # Step 4: Dependencies
-log "Step 4/5: Installing dependencies..."
+log "Step 4/6: Installing dependencies..."
 pip install --quiet transformers huggingface_hub safetensors timm tqdm pyyaml omegaconf
 log "Dependencies OK"
 
 # Step 5: SAM2
-log "Step 5/5: Installing SAM2..."
+log "Step 5/6: Installing SAM2..."
 [ -d "$SAM2_DIR" ] && rm -rf "$SAM2_DIR"
 git clone https://github.com/facebookresearch/sam2.git "$SAM2_DIR"
 cd "$SAM2_DIR"
@@ -55,8 +55,18 @@ mamba activate sam2
 pip install -e . --quiet
 log "SAM2 installed at $SAM2_DIR"
 
+# Download config files (required for build_sam2)
+log "Downloading SAM2 config files..."
+mkdir -p "$SAM2_DIR/sam2/configs"
+cd "$SAM2_DIR/sam2/configs"
+curl -fsSL -O https://huggingface.co/facebook/sam2-hiera-tiny/resolve/main/sam2_hiera_t.yaml
+curl -fsSL -O https://huggingface.co/facebook/sam2-hiera-small/resolve/main/sam2_hiera_s.yaml
+curl -fsSL -O https://huggingface.co/facebook/sam2-hiera-base/resolve/main/sam2_hiera_b.yaml
+curl -fsSL -O https://huggingface.co/facebook/sam2-hiera-large/resolve/main/sam2_hiera_l.yaml
+log "Configs downloaded"
+
 # Verify
-log "Verifying..."
+log "Step 6/6: Verifying..."
 cd "$SAM2_DIR"
 python3 -c "from sam2.build_sam import build_sam2; print('✓ Import OK')"
 
