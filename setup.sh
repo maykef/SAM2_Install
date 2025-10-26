@@ -43,7 +43,7 @@ python3 -c "import torch; assert torch.cuda.is_available(); print(f'✓ PyTorch 
 
 # Step 4: Dependencies
 log "Step 4/6: Installing dependencies..."
-pip install --quiet transformers huggingface_hub safetensors timm tqdm pyyaml omegaconf
+pip install --quiet transformers huggingface_hub safetensors timm tqdm pyyaml omegaconf napari aicsimageio pillow
 log "Dependencies OK"
 
 # Step 5: SAM2
@@ -55,19 +55,8 @@ mamba activate sam2
 pip install -e . --quiet
 log "SAM2 installed at $SAM2_DIR"
 
-# Download config files (required for build_sam2)
-log "Downloading SAM2 config files..."
-mkdir -p "$SAM2_DIR/sam2/configs"
-cd "$SAM2_DIR/sam2/configs"
-curl -fsSL -O https://huggingface.co/facebook/sam2-hiera-tiny/resolve/main/sam2_hiera_t.yaml
-curl -fsSL -O https://huggingface.co/facebook/sam2-hiera-small/resolve/main/sam2_hiera_s.yaml
-curl -fsSL -O https://huggingface.co/facebook/sam2-hiera-base/resolve/main/sam2_hiera_b.yaml
-curl -fsSL -O https://huggingface.co/facebook/sam2-hiera-large/resolve/main/sam2_hiera_l.yaml
-log "Configs downloaded"
-
-# Copy wrapper to SAM2 directory
+# Step 6: Copy wrapper
 log "Step 6/6: Installing wrapper..."
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WRAPPER_SRC="$SCRIPT_DIR/sam2_wrapper.py"
 if [ -f "$WRAPPER_SRC" ]; then
     cp "$WRAPPER_SRC" "$SAM2_DIR/sam2_wrapper.py"
@@ -79,7 +68,6 @@ fi
 # Verify
 log "Verifying installation..."
 cd "$SAM2_DIR"
-mamba activate sam2
 python3 -c "from sam2_wrapper import build_sam2_safe; print('✓ Wrapper imports OK')"
 
 log "✓ Installation complete!"
@@ -87,9 +75,5 @@ echo ""
 echo "USAGE:"
 echo "  cd ~/sam2"
 echo "  mamba activate sam2"
-echo "  python your_script.py"
-echo ""
-echo "In Python, run from ~/sam2 directory and use:"
-echo "  from sam2.build_sam import build_sam2"
-echo "  model = build_sam2('tiny', device='cuda')"
+echo "  python -c \"from sam2_wrapper import build_sam2_safe; model = build_sam2_safe('tiny', device='cuda')\""
 echo ""
