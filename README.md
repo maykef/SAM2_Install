@@ -15,8 +15,20 @@ That's it. The script handles everything automatically:
 - Installs PyTorch 2.10 nightly with CUDA 12.8
 - Verifies GPU access
 - Sets up model caching
+- **Installs sam2_wrapper to fix Hydra config path issue**
 
 **Installation time:** 10-15 minutes (mostly downloading PyTorch and models)
+
+## Critical: Use sam2_wrapper for Inference
+
+After installation, **always use `sam2_wrapper`** instead of calling `build_sam2()` directly:
+
+```bash
+mamba activate sam2
+python -c "from sam2_wrapper import build_sam2_safe; model = build_sam2_safe('tiny'); print('✓ Ready')"
+```
+
+The wrapper fixes an issue where Hydra cannot find SAM2's config files with editable installs.
 
 ## System Requirements
 
@@ -526,23 +538,43 @@ sudo reboot
 
 ---
 
+## SAM2 Wrapper: Fixing Hydra Config Issues
+
+The setup script automatically installs `sam2_wrapper.py` to handle Hydra's config path issues with editable installs. **Always use the wrapper** instead of calling `build_sam2()` directly:
+
+```python
+# WRONG - will fail with "Cannot find primary config" error
+from sam2.build_sam import build_sam2
+model = build_sam2("tiny")  # ✗ Error: Hydra config not found
+
+# CORRECT - use the wrapper installed by setup.sh
+from sam2_wrapper import build_sam2_safe
+model = build_sam2_safe("tiny")  # ✓ Works everywhere
+```
+
+The wrapper (`sam2_wrapper.py`) is installed in your Python's site-packages automatically and handles:
+- Fixing Hydra's config search path
+- Changing to SAM2 directory temporarily
+- Restoring working directory after model load
+- Works from any directory (no need to `cd ~/sam2`)
+
 ## Usage Examples
 
-### Example 1: Segment Objects from Point Clicks
+### Example 1: Segment Objects from Point Clicks (WITH WRAPPER)
 
 ```python
 import torch
 import numpy as np
 from PIL import Image
-from sam2.build_sam import build_sam2
+from sam2_wrapper import build_sam2_safe  # ← Use wrapper, not build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
 
 # Load image
 image = np.array(Image.open("photo.jpg"))
 
-# Initialize model
+# Initialize model (use wrapper)
 device = "cuda" if torch.cuda.is_available() else "cpu"
-sam2_model = build_sam2("large", device=device)  # tiny, small, large
+sam2_model = build_sam2_safe("large", device=device)  # tiny, small, large
 predictor = SAM2ImagePredictor(sam2_model)
 
 # Set image
@@ -573,14 +605,14 @@ Image.fromarray(segmented).save("result.jpg")
 ```python
 import torch
 from pathlib import Path
-from sam2.build_sam import build_sam2
+from sam2_wrapper import build_sam2_safe  # ← Use wrapper
 from sam2.sam2_image_predictor import SAM2ImagePredictor
 import numpy as np
 from PIL import Image
 
 # Setup
 device = "cuda"
-model = build_sam2("tiny", device=device)
+model = build_sam2_safe("tiny", device=device)  # Use wrapper
 predictor = SAM2ImagePredictor(model)
 
 # Process directory
@@ -603,11 +635,11 @@ for image_path in sorted(image_dir.glob("*.jpg")):
 ```python
 import torch
 import numpy as np
-from sam2.build_sam import build_sam2
+from sam2_wrapper import build_sam2_safe  # ← Use wrapper
 from sam2.sam2_image_predictor import SAM2ImagePredictor
 
 device = "cuda"
-model = build_sam2("large", device=device)
+model = build_sam2_safe("large", device=device)  # Use wrapper
 predictor = SAM2ImagePredictor(model)
 
 # Set image
@@ -632,10 +664,11 @@ print(f"Box segmentation confidence: {scores[0]:.3f}")
 import torch
 import numpy as np
 from PIL import Image
+from sam2_wrapper import build_sam2_safe  # ← Use wrapper
 
 # Initialize predictor
 device = "cuda"
-model = build_sam2("large", device=device)
+model = build_sam2_safe("large", device=device)  # Use wrapper
 predictor = SAM2ImagePredictor(model)
 
 image = np.array(Image.open("photo.jpg"))
@@ -720,6 +753,7 @@ $HOME/
 | `No space left on device` | Insufficient disk space | Free space or use separate /scratch partition |
 | `CUDA SM capability >= 7.0` | Wrong GPU (impossible with RTX Pro 6000) | Verify GPU with `nvidia-smi` |
 | `libcuda.so.1 not found` | NVIDIA driver not installed | `sudo apt install nvidia-driver-550` |
+| `Cannot find primary config 'tiny'` | Hydra config path issue | **Use wrapper: `from sam2_wrapper import build_sam2_safe`** |
 
 ## Model Variants
 
@@ -732,10 +766,12 @@ SAM2 is available in three sizes. Choose based on accuracy vs. speed tradeoff:
 | **large** | 81M | 12-16 GB | Slower | Excellent | Batch processing, complex scenes |
 
 ```python
-# Load different sizes
-model_tiny = build_sam2("tiny", device="cuda")     # Fast
-model_small = build_sam2("small", device="cuda")   # Balanced
-model_large = build_sam2("large", device="cuda")   # High accuracy
+# Load different sizes (using wrapper)
+from sam2_wrapper import build_sam2_safe
+
+model_tiny = build_sam2_safe("tiny", device="cuda")     # Fast
+model_small = build_sam2_safe("small", device="cuda")   # Balanced
+model_large = build_sam2_safe("large", device="cuda")   # High accuracy
 ```
 
 With 102GB VRAM on RTX Pro 6000, you can even run multiple models in parallel.
