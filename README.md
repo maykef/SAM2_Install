@@ -37,7 +37,6 @@ The wrapper fixes an issue where Hydra cannot find SAM2's config files with edit
 - 102GB VRAM (or similar high-end RTX Pro GPU)
 - AMD Threadripper 7970X or compatible CPU
 - 50+ GB free disk space for PyTorch + SAM2 models
-- 8TB NVMe scratch storage (recommended for model cache)
 - Ubuntu 22.04 LTS or later (Desktop or Server)
 
 ### Software Prerequisites
@@ -64,8 +63,7 @@ The wrapper fixes an issue where Hydra cannot find SAM2's config files with edit
 - Installed as editable package (pip install -e .)
 
 **Model caching:** 
-- Primary: `/scratch/models` (if writable)
-- Fallback: `~/.cache/huggingface`
+- Location: `~/.cache/huggingface`
 - Models auto-download on first use
 
 **Total footprint:**
@@ -298,43 +296,7 @@ python -c "from sam2.build_sam import build_sam2; print('OK')"
 
 ---
 
-### Error 4: `Permission denied on /scratch`
-
-**What you see:**
-```
-mkdir: cannot create directory '/scratch/models': Permission denied
-```
-
-**Why it happens:**
-- /scratch owned by root or different user
-- Insufficient permissions on /scratch directory
-- /scratch doesn't exist and can't be created
-
-**How to fix:**
-```bash
-# Check ownership
-ls -ld /scratch
-
-# Fix with sudo (setup.sh attempts this)
-sudo mkdir -p /scratch/models /scratch/cache
-sudo chown -R $USER:$USER /scratch/models /scratch/cache
-sudo chmod -R 755 /scratch/models /scratch/cache
-
-# Verify
-touch /scratch/models/.test && rm /scratch/models/.test && echo "Writable"
-
-# Rerun setup if needed
-bash setup.sh
-```
-
-**Prevention:**
-- setup.sh checks /scratch writability first
-- Automatically falls back to `~/.cache/huggingface` if needed
-- No failure if /scratch unavailable
-
----
-
-### Error 5: `sam2.__file__ is None` (NoneType error)
+### Error 4: `sam2.__file__ is None` (NoneType error)
 
 **What you see:**
 ```
@@ -367,7 +329,7 @@ bash setup.sh
 
 ---
 
-### Error 6: `git clone fails - Could not resolve host`
+### Error 5: `git clone fails - Could not resolve host`
 
 **What you see:**
 ```
@@ -402,7 +364,7 @@ bash setup.sh
 
 ---
 
-### Error 7: `pip install -e . fails` with build errors
+### Error 6: `pip install -e . fails` with build errors
 
 **What you see:**
 ```
@@ -442,7 +404,7 @@ pip install -e . --verbose
 
 ---
 
-### Error 8: `No space left on device`
+### Error 7: `No space left on device`
 
 **What you see:**
 ```
@@ -456,27 +418,24 @@ OSError: [Errno 28] No space left on device
 
 **How to fix:**
 ```bash
-# Check disk space
-df -h
+# Check disk space in home directory
+df -h ~
 
 # Clear old models if needed
 rm -rf ~/.cache/huggingface/hub/*
-
-# If using /scratch, check there too
-df -h /scratch
 
 # Free up space, then retry setup
 bash setup.sh
 ```
 
 **Prevention:**
+- Ensure at least 50+ GB free in home directory
 - setup.sh checks space implicitly (will fail to download if insufficient)
-- Use separate /scratch partition on 8TB NVMe
 - Models are lazy-loaded (only download when used)
 
 ---
 
-### Error 9: `AssertionError: CUDA SM capability >= 7.0 required`
+### Error 8: `AssertionError: CUDA SM capability >= 7.0 required`
 
 **What you see:**
 ```
@@ -505,7 +464,7 @@ python -c "import torch; print(torch.cuda.get_device_capability(0))"
 
 ---
 
-### Error 10: `ImportError: libcuda.so.1 not found`
+### Error 9: `ImportError: libcuda.so.1 not found`
 
 **What you see:**
 ```
@@ -731,12 +690,6 @@ $HOME/
 │       └── models--...
 │
 └── .bashrc                     # Updated with mamba init (if needed)
-
-/scratch/                       # Fast model cache (if available)
-├── models/
-│   └── ...
-└── cache/
-    └── ...
 ```
 
 ## Common Errors Section: Quick Reference
@@ -746,11 +699,10 @@ $HOME/
 | `mamba: command not found` | Shell not reloaded after install | `source ~/.bashrc` or reopen terminal |
 | `CUDA not available` | PyTorch missing CUDA wheels | Reinstall PyTorch from pytorch nightly index |
 | `cannot import build_sam2` | Wrong Python or corrupted install | `mamba activate sam2` then reinstall SAM2 |
-| `Permission denied /scratch` | /scratch not writable | `sudo chown -R $USER:$USER /scratch` |
 | `sam2.__file__ is None` | Corrupted package | `pip uninstall sam2 -y && bash setup.sh` |
 | `git clone fails` | No internet or GitHub down | Check connectivity with `ping github.com` |
 | `pip install -e . fails` | Missing build tools | `mamba install -y cmake ninja` |
-| `No space left on device` | Insufficient disk space | Free space or use separate /scratch partition |
+| `No space left on device` | Insufficient disk space | Free up space in home directory |
 | `CUDA SM capability >= 7.0` | Wrong GPU (impossible with RTX Pro 6000) | Verify GPU with `nvidia-smi` |
 | `libcuda.so.1 not found` | NVIDIA driver not installed | `sudo apt install nvidia-driver-550` |
 | `Cannot find primary config 'tiny'` | Hydra config path issue | **Use wrapper: `from sam2_wrapper import build_sam2_safe`** |
@@ -781,12 +733,14 @@ With 102GB VRAM on RTX Pro 6000, you can even run multiple models in parallel.
 If you need to customize behavior, set these before activating:
 
 ```bash
-# Model cache location (default: ~/.cache/huggingface)
-export HF_HOME=/scratch/cache
-export HF_HUB_CACHE=/scratch/cache/hub_cache
+# Model cache location (customize if needed)
+export HF_HOME=$HOME/.cache/huggingface
+export HF_HUB_CACHE=$HF_HOME/hub
+
+# Or use different location if needed:
+# export HF_HOME=/mnt/large_storage/huggingface
 
 # PyTorch settings
-export TORCH_HOME=/scratch/torch_cache
 export CUDA_VISIBLE_DEVICES=0  # Use specific GPU
 
 # Then activate
