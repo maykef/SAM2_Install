@@ -65,10 +65,22 @@ curl -fsSL -O https://huggingface.co/facebook/sam2-hiera-base/resolve/main/sam2_
 curl -fsSL -O https://huggingface.co/facebook/sam2-hiera-large/resolve/main/sam2_hiera_l.yaml
 log "Configs downloaded"
 
+# Copy wrapper to SAM2 directory
+log "Step 6/6: Installing wrapper..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WRAPPER_SRC="$SCRIPT_DIR/sam2_wrapper.py"
+if [ -f "$WRAPPER_SRC" ]; then
+    cp "$WRAPPER_SRC" "$SAM2_DIR/sam2_wrapper.py"
+    log "Wrapper installed to $SAM2_DIR/sam2_wrapper.py"
+else
+    error "sam2_wrapper.py not found in $SCRIPT_DIR"
+fi
+
 # Verify
-log "Step 6/6: Verifying..."
+log "Verifying installation..."
 cd "$SAM2_DIR"
-python3 -c "from sam2.build_sam import build_sam2; print('✓ Import OK')"
+mamba activate sam2
+python3 -c "from sam2_wrapper import build_sam2_safe; print('✓ Wrapper imports OK')"
 
 log "✓ Installation complete!"
 echo ""
