@@ -8,27 +8,35 @@ Professional-grade Segment Anything Model 2 installation for NVIDIA RTX Pro 6000
 bash setup.sh
 ```
 
-That's it. The script handles everything automatically:
-- Installs Miniforge if needed
-- Creates isolated `sam2` mamba environment
-- Downloads SAM2 from official GitHub
-- Installs PyTorch 2.10 nightly with CUDA 12.8
-- Verifies GPU access
-- Sets up model caching
-- **Installs sam2_wrapper to fix Hydra config path issue**
-
-**Installation time:** 10-15 minutes (mostly downloading PyTorch and models)
-
-## Critical: Use sam2_wrapper for Inference
-
-After installation, **always use `sam2_wrapper`** instead of calling `build_sam2()` directly:
+**After installation:**
 
 ```bash
+cd ~/sam2
 mamba activate sam2
-python -c "from sam2_wrapper import build_sam2_safe; model = build_sam2_safe('tiny'); print('✓ Ready')"
+
+python << 'EOF'
+from sam2_wrapper import build_sam2_safe
+from sam2.sam2_image_predictor import SAM2ImagePredictor
+import numpy as np
+
+model = build_sam2_safe("tiny", device="cuda")
+predictor = SAM2ImagePredictor(model)
+
+image = np.random.randint(0, 255, (512, 512, 3), dtype=np.uint8)
+predictor.set_image(image)
+masks, scores, _ = predictor.predict(
+    point_coords=np.array([[256, 256]]),
+    point_labels=np.array([1]),
+    multimask_output=False
+)
+print(f"✓ Works! Confidence: {scores[0]:.3f}")
+EOF
 ```
 
-The wrapper fixes an issue where Hydra cannot find SAM2's config files with editable installs.
+**Key points:**
+- Always run from `~/sam2` directory
+- Always use `from sam2_wrapper import build_sam2_safe`
+- The wrapper maps model names ("tiny", "small", etc.) to actual config filenames
 
 ## System Requirements
 
