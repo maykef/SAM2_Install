@@ -119,13 +119,13 @@ PYTEST
 log "Step 4/6: Installing HuggingFace and SAM2 dependencies..."
 
 pip install --quiet \
-    transformers>=4.36 \
-    huggingface_hub>=0.19 \
-    safetensors>=0.4 \
-    timm>=0.9 \
-    tqdm>=4.66 \
-    pyyaml>=6.0 \
-    omegaconf>=2.3 || error "Failed to install dependencies"
+    'transformers>=4.36' \
+    'huggingface_hub>=0.19' \
+    'safetensors>=0.4' \
+    'timm>=0.9' \
+    'tqdm>=4.66' \
+    'pyyaml>=6.0' \
+    'omegaconf>=2.3' || error "Failed to install dependencies"
 
 log "Dependencies installed"
 
