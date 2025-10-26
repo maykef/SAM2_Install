@@ -36,21 +36,21 @@ dependencies:
   # pip dependencies (cannot be satisfied by conda)
   - pip
 
-  pip:
-    # HuggingFace ecosystem
-    - transformers>=4.36
-    - huggingface_hub>=0.19
-    - safetensors>=0.4
-    
-    # Image models and utilities
-    - timm>=0.9  # PyTorch Image Models
-    - Pillow>=10.0
-    
-    # Utilities
-    - tqdm>=4.66
-    - pyyaml>=6.0
-    - omegaconf>=2.3
-    
-    # Optional: for notebook usage
-    - jupyter>=1.0
-    - ipython>=8.16
+pip:
+  # HuggingFace ecosystem
+  - transformers>=4.36
+  - huggingface_hub>=0.19
+  - safetensors>=0.4
+  
+  # Image models and utilities
+  - timm>=0.9  # PyTorch Image Models
+  - Pillow>=10.0
+  
+  # Utilities
+  - tqdm>=4.66
+  - pyyaml>=6.0
+  - omegaconf>=2.3
+  
+  # Optional: for notebook usage
+  - jupyter>=1.0
+  - ipython>=8.16
